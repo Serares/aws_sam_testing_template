@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  testing-stack
+
+  Sample SAM Template for testing-stack
+
+Parameters:
+  InfraStackName:
+    Type: String
+    Description: "Stack name for infra template"
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+
+Resources:
+  SSRRender:
+    Type: AWS::Serverless::API
+    Properties:
+      StageName: dev
+  
+  Properties:
+    Type: AWS::Serverless::API
+    Properties:
+      StageName: dev
+
+  Homepage:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerTag: homepage-go1.20-alpine
+      DockerContext: ./
+      Dockerfile: services/homepage/Dockerfile
+    Properties:
+      PackageType: Image
+      CodeUri: services/homepage/
+      Architectures:
+        - x86_64
+      Events:
+        Home:
+          Type: Api
+          Properties:
+            Path: /
+            Method: GET
+            RestApiId:
+              Ref: SSRRender
+      Environment:
+        Variables:
+          STATIC_URL: Fn::ImportValue 
+            'Fn::Sub': '${S3StaticsBucketName}'
+
+  Listings:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerTag: listings-go1.20-alpine
+      DockerContext: ./
+      Dockerfile: services/listings/Dockerfile
+    Properties:
+      PackageType: Image
+      CodeUri: services/listings/
+      Architectures:
+        - x86_64
+      Events:
+        Home:
+          Type: Api
+          Properties:
+            Path: /listings
+            Method: GET
+            RestApiId:
+              Ref: SSRRender
+      Environment:
+        Variables:
+          STATIC_URL: Fn::ImportValue 
+            'Fn::Sub': '${S3StaticsBucketName}'
+
+  # Admin:
+  #   Type: AWS::Serverless::Function
+  #   Metadata:
+  #     DockerTag: homepage-go1.20-alpine
+  #     DockerContext: ./
+  #     Dockerfile: services/homepage/Dockerfile
+  #   Properties:
+  #     PackageType: Image
+  #     CodeUri: services/homepage/
+  #     Architectures:
+  #       - x86_64
+  #     Events:
+  #       Home:
+  #         Type: Api
+  #         Properties:
+  #           Path: /
+  #           Method: GET
+  #           RestApiId:
+  #             Ref: SSRRender
+  #       GetAll:
+  #         Type: Api
+  #         Properties:
+  #           Path: /get_all
+  #           Method: GET
+  #           RestApiId:
+  #             Ref: SSRRender
+  #     Environment:
+  #       Variables:
+  #         PARAM1: VALUE
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  HelloWorldAPI:
+    Description: "API Gateway endpoint URL for Prod environment for First Function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  Homepage:
+    Description: "First Lambda Function ARN"
+    Value: !GetAtt Homepage.Arn
+  HomepageIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt HomepageRole.Arn

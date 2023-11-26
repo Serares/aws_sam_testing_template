@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: "Infrastructure for static files"
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name for the S3 bucket
+  CloudFrontPriceClass:
+    Type: String
+    Default: "PriceClass_100"
+    Description: CloudFront price class.
+
+Resources:
+  Statics:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Statics
+      PolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Action: "s3:GetObject"
+            Resource: !Sub "arn:aws:s3:::${Statics}/*"
+            Principal:
+              AWS: !Ref OriginAccessIdentity
+
+  OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Ref AWS::StackName
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: "true"
+        Comment: !Ref AWS::StackName
+        # DefaultRootObject: !Ref IndexDocument
+        HttpVersion: http2
+        CustomErrorResponses:
+          - ErrorCachingMinTTL: 86400
+            ErrorCode: 403 # object not found in bucket
+            # ResponseCode: 404
+            # ResponsePagePath:
+            #   !If [
+            #     IsStaticMode,
+            #     !Sub "/${ErrorDocument}",
+            #     !Sub "/${IndexDocument}",
+            #   ]
+        Origins:
+          - DomainName: !Sub "${Statics}.s3.${AWS::Region}.amazonaws.com"
+            Id: bucketOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${OriginAccessIdentity}
+        DefaultCacheBehavior:
+          Compress: "true"
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: bucketOrigin
+          ForwardedValues:
+            QueryString: "false"
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: allow-all
+          # FunctionAssociations:
+          #   - EventType: viewer-request
+          #     FunctionARN:
+          #       !If [
+          #         IsStaticMode,
+          #         !GetAtt RewriteRequestStaticFunction.FunctionMetadata.FunctionARN,
+          #         !GetAtt RewriteRequestSpaFunction.FunctionMetadata.FunctionARN,
+          #       ]
+        PriceClass: !Ref CloudFrontPriceClass
+
+Outputs:
+  S3StaticsBucketName:
+    Description: "The S3 bucket name where HTML files need to be uploaded"
+    Value: !Ref Statics
+  CloudFrontDistribution:
+    Description: "The CloudFront distribution in front of the S3 bucket"
+    Value: !Ref Distribution

@@ -1,0 +1,10 @@
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "noEmit": true,
+    "moduleResolution": "node"
+  },
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
